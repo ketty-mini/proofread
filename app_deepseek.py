@@ -3,8 +3,8 @@ from openai import OpenAI
 import difflib
 
 # --- 1. 页面基础配置 ---
-st.set_page_config(page_title="DeepSeek 智能纠错", page_icon="✍️")
-st.title("DeepSeek 智能纠错助手")
+st.set_page_config(page_title="智能纠错", page_icon="✍️")
+st.title("智能纠错助手")
 
 # --- 2. 获取 API Key (云端保险箱模式) ---
 # 优先从 Streamlit Secrets 读取
@@ -26,7 +26,7 @@ client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 # 左侧：说明区
 with st.sidebar:
     st.markdown("### 🤖 关于本工具")
-    st.info("本工具由 DeepSeek V3 模型驱动，能自动纠正中文错别字、语病并进行润色。")
+    st.info("本工具能自动纠正中文错别字、语病并进行润色。")
     st.markdown("---")
     st.markdown("**使用说明：**\n1. 在右侧输入原文\n2. 点击“开始润色”\n3. 查看红绿对比结果")
 
@@ -91,4 +91,5 @@ if st.button("✨ 开始智能润色", type="primary"):
                 st.text_area("📋 复制修正后的纯文本：", value=corrected_text, height=150)
 
             except Exception as e:
+
                 st.error(f"发生错误：{e}")
