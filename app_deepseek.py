@@ -2,12 +2,12 @@ import streamlit as st
 from openai import OpenAI
 import difflib
 from docx import Document
-from docx.shared import RGBColor
+from docx.shared import RGBColor, Pt
 from io import BytesIO
 
 # --- 1. 页面基础配置 ---
-st.set_page_config(page_title="智能编辑", page_icon="⚖️", layout="wide")
-st.title("智能编辑助手")
+st.set_page_config(page_title="DeepSeek 智能质检", page_icon="⚖️", layout="wide")
+st.title("DeepSeek 智能质检助手 (标点增强版)")
 
 # --- 2. 获取 API Key ---
 try:
@@ -28,9 +28,13 @@ def create_word_docx(original_text, corrected_text, mode_name):
     doc = Document()
     doc.add_heading(f'DeepSeek 质检标记 ({mode_name})', 0)
     
+    # 设置正文样式基础
+    style = doc.styles['Normal']
+    style.font.name = 'SimSun' # 宋体
+    style.element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+    
     # === 分支逻辑 ===
     if "仅标红" in mode_name:
-        # === Word 导出逻辑：只变红，不删不增 ===
         p = doc.add_paragraph()
         matcher = difflib.SequenceMatcher(None, original_text, corrected_text)
         
@@ -40,27 +44,35 @@ def create_word_docx(original_text, corrected_text, mode_name):
                 run = p.add_run(original_text[a0:a1])
                 run.font.color.rgb = RGBColor(0, 0, 0)
             elif opcode == 'delete':
-                # 多余：标红 (无删除线)
+                # 多余的内容：红色 (不划线，直接红字警示)
                 run = p.add_run(original_text[a0:a1])
                 run.font.color.rgb = RGBColor(255, 0, 0)
                 run.font.strike = False 
             elif opcode == 'replace':
-                # 错误：标红原文 (无删除线)
+                # 错误的内容（含错别字、错标点）：红色原文
                 run_del = p.add_run(original_text[a0:a1])
                 run_del.font.color.rgb = RGBColor(255, 0, 0)
                 run_del.font.strike = False
-            # insert 忽略
+            elif opcode == 'insert':
+                # === 关键修复：缺失内容警示 ===
+                # 如果 AI 觉得这里缺标点或缺字，我们在原文位置加一个红色的 ^
+                run_ins = p.add_run("^") 
+                run_ins.font.color.rgb = RGBColor(255, 0, 0)
+                run_ins.font.bold = True
+                run_ins.font.size = Pt(12) # 稍微大一点以便看见
                 
-        doc.add_paragraph("\n(说明：文中【红色字体】为疑似语病、错别字或标点错误)")
+        doc.add_paragraph("\n(图例：【红色文字】= 错字/多余；【^】= 此处缺失标点或成分)")
 
     else:
-        # 其他模式：导出修正后的文本
         doc.add_paragraph(corrected_text)
     
     byte_io = BytesIO()
     doc.save(byte_io)
     byte_io.seek(0)
     return byte_io
+
+# 为了 Word 字体设置引入的库
+from docx.oxml.ns import qn
 
 # --- 5. 界面逻辑 ---
 with st.sidebar:
@@ -70,36 +82,41 @@ with st.sidebar:
         "请选择模式：",
         ("🔍 仅标红 (字/词/标点/语法)", "🛠️ 仅纠错 (直接修正)", "✨ 深度润色 (文采提升)"),
         index=0,
-        help="【仅标红】网页和文档均只显示原文，错误之处用红色字体标出，无修改建议，无删除线。"
+        help="【仅标红】显示原文。错误文字变红；缺失标点的地方会显示红色的 ^ 符号。"
     )
     
     st.markdown("---")
-    st.info("💡 已启用 GB/T 15834 标点符号用法 & 现代汉语通用语法规范。")
+    st.info("💡 已强化对‘标点缺失’和‘中西文标点混用’的检测。")
 
-# --- 6. 核心 Prompt ---
+# --- 6. 核心 Prompt (针对标点极其变态的严格) ---
 if "仅标红" in mode:
-    # 强制修正以触发 Diff，但在前端只显示红色原文
+    # 强制要求 AI 即使是一个顿号不对也要修正，这样 Diff 算法才能抓到
     system_prompt = """
-    你是一个极其严苛的图书质检员。请对文本进行全维度的【死磕式校对】。
+    你是一个根据《图书质量管理规定》工作的魔鬼质检员。
     
-    【必须修正的错误类型】：
-    1. **标点符号**：严格执行 GB/T 15834 标准。
-    2. **语法语病**：修正成分缺失、搭配不当、语序混乱。
-    3. **错别字与词汇**：修正错别字和不规范异形词。
-       
-    【输出要求】：
-    - 输出修正后的完美文本。
-    - 系统会比对你的输出与原文，将差异处标红。
-    - 不要解释，直接输出正文。
+    【核心任务】：
+    对文本进行"地毯式"扫描，输出一份**完美符合中国出版规范**的文本。
+    
+    【必须纠正的微小错误】：
+    1. **标点绝对严格**：
+       - 补全所有句子末尾漏掉的句号。
+       - 修正"逗号一逗到底"的问题。
+       - 区分中英文标点（如将 , 改为 ，）。
+       - 数值范围必须用波浪线（~）或一字线。
+    2. **修正错别字与异形词**。
+    3. **修正语病**。
+    
+    【输出格式】：
+    直接输出修正后的全文。不要带任何解释。
     """
 elif "仅纠错" in mode:
-    system_prompt = "你是一个语文老师。请修正文本中的【错别字】、【语病】和【不通顺】的句子。保持原文的语气和原意，不要进行过度的修饰或重写，只确保语法正确、逻辑通顺即可。请直接输出修正后的文本。"
+    system_prompt = "你是一个语文老师。请修正文本中的【错别字】、【语病】和【标点错误】。保持原文语气，只确保规范通顺。请直接输出修正后的文本。"
 else:
-    system_prompt = "你是一个资深的编辑。请对文本进行【深度润色】。在修正错误的基础上，你可以优化用词、调整句式、提升文采，使文章更加优雅、专业且富有感染力。请直接输出润色后的文本。"
+    system_prompt = "你是一个资深的编辑。请对文本进行【深度润色】。优化用词、调整句式、提升文采。请直接输出润色后的文本。"
 
 # 主界面
 st.markdown("#### 📝 全文质检台")
-original_text = st.text_area("输入文稿：", height=200, placeholder="在此粘贴文章...")
+original_text = st.text_area("输入文稿：", height=200, placeholder="尝试输入一句没标点的话，例如：'今天天气不错我们去公园玩' ...")
 
 current_mode_name = mode.split(' ')[1]
 
@@ -107,7 +124,7 @@ if st.button(f"🚀 开始扫描：{current_mode_name}", type="primary"):
     if not original_text:
         st.warning("请先输入文字！")
     else:
-        with st.spinner("AI 正在进行全维度质检扫描..."):
+        with st.spinner("AI 正在拿放大镜找标点错误..."):
             try:
                 # API 调用
                 response = client.chat.completions.create(
@@ -122,69 +139,21 @@ if st.button(f"🚀 开始扫描：{current_mode_name}", type="primary"):
 
                 st.success("扫描完成！")
 
-                # --- 差异对比逻辑 (HTML 生成) ---
+                # --- 差异对比逻辑 (HTML) ---
                 st.subheader("🔍 质检结果预览")
                 
-                # 定义不同模式下的网页显示逻辑
                 def generate_diff_html(original, corrected, mode_label):
                     output = []
                     s = difflib.SequenceMatcher(None, original, corrected)
                     
                     for opcode, a0, a1, b0, b1 in s.get_opcodes():
                         if "仅标红" in mode_label:
-                            # === 仅标红模式：只显示原文，错误变红，无绿色建议 ===
+                            # === 仅标红逻辑 ===
                             if opcode == 'equal':
-                                output.append(f'<span>{original[a0:a1]}</span>')
+                                output.append(f'<span style="color:#000;">{original[a0:a1]}</span>')
                             elif opcode == 'delete':
-                                # 红色字 (原文)
-                                output.append(f'<span style="color:#e03131; font-weight:bold;">{original[a0:a1]}</span>')
+                                # 多余的字：红色
+                                output.append(f'<span style="color:#dc3545; font-weight:bold;">{original[a0:a1]}</span>')
                             elif opcode == 'replace':
-                                # 红色字 (原文)
-                                output.append(f'<span style="color:#e03131; font-weight:bold;">{original[a0:a1]}</span>')
-                            elif opcode == 'insert':
-                                # 忽略新插入的内容
-                                pass
-                        else:
-                            # === 其他模式：保留红绿对比，方便看改了什么 ===
-                            if opcode == 'equal':
-                                output.append(original[a0:a1])
-                            elif opcode == 'insert':
-                                output.append(f'<span style="background-color:#d4edda; color:#155724; padding:0 2px;">{corrected[b0:b1]}</span>')
-                            elif opcode == 'delete':
-                                output.append(f'<span style="background-color:#f8d7da; color:#721c24; text-decoration:line-through;">{original[a0:a1]}</span>')
-                            elif opcode == 'replace':
-                                output.append(f'<span style="background-color:#f8d7da; color:#721c24; text-decoration:line-through;">{original[a0:a1]}</span>')
-                                output.append(f'<span style="background-color:#d4edda; color:#155724; padding:0 2px;">{corrected[b0:b1]}</span>')
-                                
-                    return "".join(output)
-
-                diff_html = generate_diff_html(original_text, corrected_text, mode)
-                
-                # 渲染 HTML
-                st.markdown(
-                    f'<div style="font-size:16px; line-height:1.8; border:1px solid #ddd; padding:20px; border-radius:5px; background-color:#fff; color:#333;">{diff_html}</div>', 
-                    unsafe_allow_html=True
-                )
-                
-                if "仅标红" in mode:
-                     st.caption("👆 说明：预览框中【红色加粗】的文字即为系统判定存在语病或错误的原文。")
-
-                # --- 结果导出 ---
-                st.markdown("---")
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.empty()
-                
-                with col2:
-                    st.markdown("**📥 导出文档：**")
-                    word_file = create_word_docx(original_text, corrected_text, current_mode_name)
-                    st.download_button(
-                        label="下载 Word (.docx)",
-                        data=word_file,
-                        file_name=f"DeepSeek_质检_{current_mode_name}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
-
-            except Exception as e:
-                st.error(f"发生错误：{e}")
+                                # 错字/错标点：红色
+                                output.append(f'<span style="color:#dc
