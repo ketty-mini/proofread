@@ -5,8 +5,8 @@ from docx import Document
 from io import BytesIO
 
 # --- 1. 页面基础配置 ---
-st.set_page_config(page_title="DeepSeek 智能纠错", page_icon="✍️", layout="wide")
-st.title("DeepSeek 智能纠错助手")
+st.set_page_config(page_title="智能内容编辑", page_icon="✍️", layout="wide")
+st.title("智能编辑助手")
 
 # --- 2. 获取 API Key ---
 try:
@@ -45,7 +45,7 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    st.info("本工具由 DeepSeek V3 驱动。")
+    st.info("本工具深度帮助编辑修正。")
 
 # --- 6. 核心 Prompt 策略 (根据模式切换) ---
 # 这里的缩进非常重要，请不要手动修改
@@ -129,3 +129,4 @@ if st.button(f"🚀 开始执行：{current_mode_name}", type="primary"):
 
             except Exception as e:
                 st.error(f"发生错误：{e}")
+
