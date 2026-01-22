@@ -156,4 +156,50 @@ if st.button(f"🚀 开始扫描：{current_mode_name}", type="primary"):
                                 output.append(f'<span style="color:#dc3545; font-weight:bold;">{original[a0:a1]}</span>')
                             elif opcode == 'replace':
                                 # 错字/错标点：红色
-                                output.append(f'<span style="color:#dc
+                                output.append(f'<span style="color:#dc3545; font-weight:bold;">{original[a0:a1]}</span>')
+                            elif opcode == 'insert':
+                                # 缺失标点/缺字：显示红色 ^
+                                output.append(f'<span style="color:#dc3545; font-weight:bold; font-size:1.2em;">^</span>')
+                        else:
+                            # === 其他模式 ===
+                            if opcode == 'equal':
+                                output.append(original[a0:a1])
+                            elif opcode == 'insert':
+                                output.append(f'<span style="background-color:#d4edda; color:#155724;">{corrected[b0:b1]}</span>')
+                            elif opcode == 'delete':
+                                output.append(f'<span style="background-color:#f8d7da; color:#721c24; text-decoration:line-through;">{original[a0:a1]}</span>')
+                            elif opcode == 'replace':
+                                output.append(f'<span style="background-color:#f8d7da; color:#721c24; text-decoration:line-through;">{original[a0:a1]}</span>')
+                                output.append(f'<span style="background-color:#d4edda; color:#155724;">{corrected[b0:b1]}</span>')
+                                
+                    return "".join(output)
+
+                diff_html = generate_diff_html(original_text, corrected_text, mode)
+                
+                st.markdown(
+                    f'<div style="font-size:16px; line-height:1.8; border:1px solid #ddd; padding:20px; border-radius:5px; background-color:#fff;">{diff_html}</div>', 
+                    unsafe_allow_html=True
+                )
+                
+                if "仅标红" in mode:
+                     st.caption("👆 说明：【红色字】= 原文错误；【^】= 此处缺失标点或文字。")
+
+                # --- 结果导出 ---
+                st.markdown("---")
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.empty()
+                
+                with col2:
+                    st.markdown("**📥 导出文档：**")
+                    word_file = create_word_docx(original_text, corrected_text, current_mode_name)
+                    st.download_button(
+                        label="下载 Word (.docx)",
+                        data=word_file,
+                        file_name=f"DeepSeek_质检_{current_mode_name}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+
+            except Exception as e:
+                st.error(f"发生错误：{e}")
