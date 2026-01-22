@@ -38,7 +38,7 @@ with st.sidebar:
     st.markdown("### 🤖 关于本工具")
     st.info("本工具能自动纠正中文错别字、语病并进行润色")
     st.markdown("---")
-    st.markdown("**使用说明：**\n1. 在右侧输入原文\n2. 点击“开始润色”\n3. 查看红绿对比结果". 功能更新：**\n✨ 支持一键复制\n📥 支持导出 Word")
+    st.markdown("功能更新：**\n✨ 支持一键复制\n📥 支持导出 Word")
 
 # 主界面
 original_text = st.text_area("请输入文章/段落：", height=200, placeholder="在此粘贴文字...")
@@ -111,4 +111,5 @@ if st.button("✨ 开始智能润色", type="primary"):
 
             except Exception as e:
                 st.error(f"发生错误：{e}")
+
 
