@@ -6,8 +6,8 @@ from docx.shared import RGBColor, Pt
 from io import BytesIO
 
 # --- 1. 页面基础配置 ---
-st.set_page_config(page_title="DeepSeek 智能质检", page_icon="⚖️", layout="wide")
-st.title("DeepSeek 智能质检助手 (标点增强版)")
+st.set_page_config(page_title="智能编辑", page_icon="⚖️", layout="wide")
+st.title("智能编辑助手")
 
 # --- 2. 获取 API Key ---
 try:
@@ -86,7 +86,7 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    st.info("💡 已强化对‘标点缺失’和‘中西文标点混用’的检测。")
+    st.info("💡 已强化。")
 
 # --- 6. 核心 Prompt (针对标点极其变态的严格) ---
 if "仅标红" in mode:
@@ -203,3 +203,4 @@ if st.button(f"🚀 开始扫描：{current_mode_name}", type="primary"):
 
             except Exception as e:
                 st.error(f"发生错误：{e}")
+
