@@ -149,7 +149,7 @@ if 'ocr_text' not in st.session_state:
 col_head_1, col_head_2 = st.columns([1.5, 2], vertical_alignment="center")
 
 with col_head_1:
-    st.markdown('<div class="nav-title">✒️ Ketty\'s Mini</div>', unsafe_allow_html=True)
+    st.markdown('<div class="nav-title">✒️ Ketty\'s Mini Proofreading</div>', unsafe_allow_html=True)
 
 with col_head_2:
     selected_mode = st.radio(
@@ -344,6 +344,7 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
 
