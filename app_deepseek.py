@@ -1,4 +1,60 @@
 import streamlit as st
+
+# 定义 CSS 样式
+st.markdown("""
+<style>
+    /* 隐藏原本的单选圆圈 */
+    div[role="radiogroup"] > :first-child {
+        display: none !important;
+    }
+    
+    /* 设置容器布局为横向排列 */
+    div[role="radiogroup"] {
+        flex-direction: row;
+        justify-content: center;
+        gap: 10px; /* 按钮之间的间距 */
+    }
+    
+    /* 每一个选项（Label）的样式 - 即未选中时的样子 */
+    div[role="radiogroup"] label {
+        background-color: #f0f2f6; /* 浅灰背景 */
+        padding: 10px 30px;       /* 增加内边距，让它变大 */
+        border-radius: 8px;       /* 圆角 */
+        border: 1px solid #d6d6d6;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 18px !important; /* 字体改大 */
+    }
+    
+    /* 选中状态的样式 - 变深灰 */
+    div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child {
+         background-color: #d1d5db !important; /* 选中变深灰，不是红 */
+         border-color: #a0a0a0 !important;
+         color: black !important;
+         font-weight: bold;
+    }
+    
+    /* 如果上一段CSS没生效，尝试通过 aria-checked 属性定位 (Streamlit版本差异) */
+    div[role="radiogroup"] label[aria-checked="true"] {
+        background-color: #6c757d !important; /* 你想要的灰色 */
+        color: white !important;
+        border: none;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# 使用 horizontal=True 的 radio
+selected_mode = st.radio(
+    "选择模式", # 标题会被上面的CSS隐藏
+    ["仅标红", "纠错", "润色"],
+    horizontal=True,
+    label_visibility="collapsed" # 隐藏标题
+)
+
+# 你的业务逻辑
+st.info(f"当前选中模式: {selected_mode}")
+
+import streamlit as st
 from openai import OpenAI
 import difflib
 from docx import Document
@@ -319,3 +375,4 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
