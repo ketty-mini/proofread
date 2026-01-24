@@ -13,7 +13,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 2. CSS 样式升级：胶囊按钮 + 动态反馈 ---
+# --- 2. CSS 样式：回归经典“下划线+悬停上浮” ---
 def local_css():
     st.markdown("""
     <style>
@@ -22,7 +22,7 @@ def local_css():
         font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
     }
 
-    /* === 顶部导航栏 === */
+    /* === 顶部导航栏布局 === */
     .nav-container {
         display: flex;
         align-items: center;
@@ -31,8 +31,8 @@ def local_css():
     }
     
     .nav-title {
-        font-size: 20px;
-        font-weight: 800;
+        font-size: 22px;
+        font-weight: 700;
         color: #1a1a1a;
         display: flex;
         align-items: center;
@@ -40,77 +40,79 @@ def local_css():
         letter-spacing: -0.5px;
     }
 
-    /* === 胶囊式选项卡 (关键修改) === */
+    /* === 还原您喜欢的：纯文字悬停特效菜单 === */
     div[role="radiogroup"] {
         display: flex;
         justify-content: flex-end;
-        gap: 10px;
-        background: #f3f4f6; /* 浅灰底槽 */
-        padding: 4px;
-        border-radius: 8px; /* 圆角底座 */
+        gap: 25px; /* 间距 */
+        background: transparent; /* 透明背景 */
+        padding: 0;
+        border: none;
         width: fit-content;
         margin-left: auto;
     }
 
+    /* 隐藏默认圆圈 */
     div[role="radiogroup"] label > div:first-child {
-        display: none; /* 隐藏圆圈 */
+        display: none; 
     }
 
+    /* 选项文字基础样式 */
     div[role="radiogroup"] label p {
-        font-size: 14px;
-        color: #6b7280;
+        font-size: 16px;
+        color: #9ca3af; /* 默认浅灰，更显高级 */
         font-weight: 500;
-        padding: 6px 16px;
+        padding: 6px 12px;
         border-radius: 6px;
         margin: 0 !important;
-        transition: all 0.2s ease;
-        text-align: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* 经典的丝滑动画 */
+        border-bottom: 2px solid transparent; /* 预留边框 */
     }
 
-    /* 选中状态：黑底白字，像一个实心胶囊 */
-    div[role="radiogroup"] label[data-checked="true"] p {
-        background-color: #000000;
-        color: #ffffff;
-        font-weight: 600;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
-
-    /* 悬停状态 */
+    /* 悬停 (Hover) 动态效果：上浮 + 浅灰气泡 */
     div[role="radiogroup"] label:hover p {
-        color: #000000;
-    }
-    div[role="radiogroup"] label[data-checked="true"]:hover p {
-        color: #ffffff; /* 选中时悬停保持白色 */
+        color: #1a1a1a;
+        background-color: #f3f4f6; 
+        transform: translateY(-3px); /* 经典的上浮效果 */
     }
 
-    /* === 动态说明文字 === */
+    /* 选中 (Selected) 状态：黑字 + 黑下划线 */
+    div[role="radiogroup"] label[data-checked="true"] p {
+        color: #000000;
+        font-weight: 700;
+        border-bottom: 2px solid #000000;
+        background-color: transparent; /* 选中时不需要背景色，保持干净 */
+    }
+
+    /* === 动态说明文字 (保留这个功能，方便区分) === */
     .mode-desc {
         font-size: 14px;
         color: #666;
-        margin-bottom: 10px;
-        padding-left: 5px;
-        border-left: 3px solid #000; /* 左侧黑条装饰 */
+        margin-bottom: 15px;
+        padding-left: 10px;
+        border-left: 3px solid #1a1a1a;
         line-height: 1.5;
-        animation: fadeIn 0.5s;
+        animation: fadeIn 0.6s ease;
     }
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(5px); }
         to { opacity: 1; transform: translateY(0); }
     }
 
-    /* === 输入框 === */
+    /* === 输入框优化 === */
     .stTextArea textarea {
         border: 1px solid #e5e7eb;
-        border-radius: 8px;
+        border-radius: 12px; /*稍微圆一点 */
         padding: 16px;
         font-size: 16px;
         background-color: #fcfcfc;
         transition: all 0.2s;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.01);
     }
     .stTextArea textarea:focus {
         background-color: #ffffff;
-        border-color: #000;
-        box-shadow: 0 0 0 2px rgba(0,0,0,0.05);
+        border-color: #1a1a1a;
+        box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
     }
 
     /* === 按钮 === */
@@ -121,10 +123,13 @@ def local_css():
         border: none;
         padding: 12px 24px;
         font-weight: 600;
+        letter-spacing: 0.5px;
         width: 100%;
+        transition: transform 0.1s;
     }
     div.stButton > button:hover {
-        background-color: #333;
+        background-color: #000000;
+        transform: translateY(-1px);
     }
 
     /* === 隐藏多余元素 === */
@@ -147,14 +152,14 @@ except:
 
 client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
-# --- 4. 顶部布局 (左Title，右Menu) ---
-col_head_1, col_head_2 = st.columns([1.2, 2], vertical_alignment="center")
+# --- 4. 顶部布局 ---
+col_head_1, col_head_2 = st.columns([1.5, 2], vertical_alignment="center")
 
 with col_head_1:
     st.markdown('<div class="nav-title">✒️ Ketty\'s Mini</div>', unsafe_allow_html=True)
 
 with col_head_2:
-    # 选项放在右侧
+    # 选项放在右侧，保持您喜欢的样式
     selected_mode = st.radio(
         "Nav",
         ["仅标红", "纠错", "润色"],
@@ -165,13 +170,12 @@ with col_head_2:
 
 st.markdown("---") 
 
-# --- 5. 动态内容配置 (关键：让页面“动”起来) ---
-# 定义每个模式的 文案、图标、Prompt
+# --- 5. 动态内容配置 ---
 mode_config = {
     "仅标红": {
-        "desc": "🔴 **严格查错模式**：仅标记错别字、标点和明显语病，**绝对不改写**原文。",
-        "placeholder": "请粘贴文章... (此模式将严格比对，只会标红错误之处)",
-        "btn_text": "开始扫描 (Strict Scan)",
+        "desc": "🔴 Strict Mode：严格查错，仅标红原文中的错别字与语病，绝不改写。",
+        "placeholder": "在此粘贴文章... (系统将进行 GB/T 15834 严格扫描)",
+        "btn_text": "开始扫描 / Strict Scan",
         "prompt": """
             你是一个严格的校对员。请检查文本中的【错别字】、【标点错误】和【明显语病】。
             【绝对指令】：
@@ -182,41 +186,40 @@ mode_config = {
         """
     },
     "纠错": {
-        "desc": "🛠️ **智能纠错模式**：修正错别字和语病，保持原文语气，确保通顺规范。",
-        "placeholder": "请粘贴文章... (此模式将修正错误并优化不通顺的句子)",
-        "btn_text": "开始纠错 (Auto Fix)",
-        "prompt": "你是一个语文老师。修正错别字、语病和标点。保持原文语气，只确保规范。直接输出修正后的文本。"
+        "desc": "🛠️ Fix Mode：智能修正错别字、标点及不通顺语句，保持原意。",
+        "placeholder": "在此粘贴文章... (系统将修正错误并优化语病)",
+        "btn_text": "开始纠错 / Auto Fix",
+        "prompt": "你是一个资深的语文老师。修正错别字、语病和标点。保持原文语气，只确保规范。直接输出修正后的文本。"
     },
     "润色": {
-        "desc": "✨ **深度润色模式**：优化用词，调整句式，提升文采，使其更具专业感。",
-        "placeholder": "请粘贴文章... (此模式将对文章进行深度美化和润色)",
-        "btn_text": "开始润色 (Polish Magic)",
+        "desc": "✨ Polish Mode：深度优化用词与句式，提升文章的专业度与文采。",
+        "placeholder": "在此粘贴文章... (系统将进行深度润色)",
+        "btn_text": "开始润色 / Polish Magic",
         "prompt": "你是一个资深的编辑。请对文本进行深度润色，优化用词和句式，使其更加流畅专业。直接输出结果。"
     }
 }
 
-# 获取当前模式的配置
 current_config = mode_config[selected_mode]
 
-# 显示动态说明 (在输入框上方)
+# 显示动态说明
 st.markdown(f'<div class="mode-desc">{current_config["desc"]}</div>', unsafe_allow_html=True)
 
-# 输入区 (Placeholder 随模式改变)
+# 输入区
 text_input = st.text_area(
     "",
     height=300,
     placeholder=current_config["placeholder"]
 )
 
-# 按钮 (文字随模式改变)
+# 按钮
 run_btn = st.button(current_config["btn_text"])
 
 # --- 6. 执行逻辑 ---
 if run_btn:
     if not text_input:
-        st.warning("⚠️ 既然要处理，总得给点字吧？")
+        st.warning("⚠️ 请先输入文字内容")
     else:
-        with st.spinner(f"DeepSeek is {selected_mode}ing..."):
+        with st.spinner("Processing..."):
             try:
                 response = client.chat.completions.create(
                     model="deepseek-chat",
@@ -228,18 +231,18 @@ if run_btn:
                 )
                 res_text = response.choices[0].message.content.strip()
 
-                # --- 结果展示 & Diff ---
-                # 样式：虚线框
+                # --- 结果展示 ---
                 st.markdown(
                     """
                     <style>
                     .result-box {
                         margin-top: 25px;
-                        padding: 30px;
+                        padding: 40px;
                         border: 2px dashed #e5e7eb;
-                        border-radius: 12px;
+                        border-radius: 4px; /* 纸张感 */
                         background: #ffffff;
-                        font-family: "Songti SC", serif; 
+                        font-family: "Songti SC", "SimSun", serif; 
+                        font-size: 18px;
                         line-height: 2.0;
                     }
                     </style>
@@ -254,9 +257,9 @@ if run_btn:
                             if opcode == 'equal':
                                 output.append(f'<span>{orig[a0:a1]}</span>')
                             elif opcode in ['delete', 'replace']:
-                                output.append(f'<span style="color:#dc2626; font-weight:bold; background-color:#fef2f2; border-bottom:1px solid #dc2626;">{orig[a0:a1]}</span>')
+                                output.append(f'<span style="color:#e11d48; font-weight:bold; background-color:#fff1f2; padding:0 2px;">{orig[a0:a1]}</span>')
                             elif opcode == 'insert':
-                                output.append(f'<span style="color:#dc2626; font-weight:bold;">^</span>')
+                                output.append(f'<span style="color:#e11d48; font-weight:bold;">^</span>')
                         else:
                             if opcode == 'equal':
                                 output.append(orig[a0:a1])
@@ -274,7 +277,7 @@ if run_btn:
                 # Word 导出
                 def create_docx(orig, corr, mode):
                     doc = Document()
-                    doc.add_heading(f'Ketty\'s Report - {mode}', 0)
+                    doc.add_heading(f'Ketty\'s Review - {mode}', 0)
                     style = doc.styles['Normal']
                     style.font.name = 'SimSun'
                     style.element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
@@ -302,7 +305,7 @@ if run_btn:
                 st.markdown("<br>", unsafe_allow_html=True)
                 file_docx = create_docx(text_input, res_text, selected_mode)
                 st.download_button(
-                    label=f"📥 导出 {selected_mode} 报告 (.docx)",
+                    label=f"📥 导出报告 / Download (.docx)",
                     data=file_docx,
                     file_name=f"Ketty_{selected_mode}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
