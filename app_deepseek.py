@@ -174,7 +174,7 @@ st.markdown("---")
 # --- 5. 动态内容配置 (关键修复：Prompt 增加"保留换行"指令) ---
 mode_config = {
     "仅标红": {
-        "desc": "🔴 **Strict Mode**：严格查错，仅标红原文中的错别字与语病，**绝不改写**。",
+        "desc": "🔴 Strict Mode：严格查错，仅标红原文中的错别字与语病，绝不改写。",
         "placeholder": "在此输入或拍照识别...",
         "btn_text": "开始扫描 / Strict Scan",
         "prompt": """
@@ -187,11 +187,11 @@ mode_config = {
         """
     },
     "纠错": {
-        "desc": "🛠️ **Fix Mode**：智能修正错别字、标点及不通顺语句，保持原意。",
+        "desc": "🛠️ Fix Mode：智能修正错别字、标点及不通顺语句，保持原意。",
         "placeholder": "在此输入或拍照识别...",
         "btn_text": "开始纠错 / Auto Fix",
         "prompt": """
-            你是一个语文老师。修正错别字、语病和标点。
+            你是一个资深语文老师。修正错别字、语病和标点。
             【重要指令】：
             1. 保持原文语气，只确保规范。
             2. 【严禁合并段落】：必须严格保留原文的换行符和段落结构，原文有几段，输出就是几段。
@@ -199,7 +199,7 @@ mode_config = {
         """
     },
     "润色": {
-        "desc": "✨ **Polish Mode**：深度优化用词与句式，提升文章的专业度与文采。",
+        "desc": "✨ Polish Mode：深度优化用词与句式，提升文章的专业度与文采。",
         "placeholder": "在此输入或拍照识别...",
         "btn_text": "开始润色 / Polish Magic",
         "prompt": """
@@ -350,3 +350,4 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
