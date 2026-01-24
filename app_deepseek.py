@@ -242,31 +242,35 @@ text_input = st.text_area(
     help="在这里输入文字，或者通过上方图片识别自动填充"
 )
 
+# 👇 把这段代码加到 st.button 之前！
+if selected_mode == "仅标红":
+    btn_label = "🔍 开始查错 / Start Check"
+elif selected_mode == "纠错":
+    btn_label = "🚑 开始纠错 / Fix Errors"
+else:
+    btn_label = "✨ 开始润色 / Polish Magic"
+    
 run_btn = st.button("✨ 开始润色 / Polish Magic", type="primary")
-# ✅ 正确示范：使用变量作为按钮名字
-if st.button(btn_label, type="primary"):
-    # 这里面的处理逻辑也要记得根据 mode 区分哦！
-    if selected_mode == "仅标红":
-        # 调用查错函数
-        pass
-    elif selected_mode == "纠错":
-        # 调用纠错函数
-        pass
-    else:
-        # 调用润色函数
-        pass
 
-# ✅ 正确示范：使用变量作为按钮名字
+# 1. 先定义名字
+if selected_mode == "仅标红":
+    btn_label = "🔍 开始查错 / Start Check"
+elif selected_mode == "纠错":
+    btn_label = "🚑 开始纠错 / Fix Errors"
+else:
+    btn_label = "✨ 开始润色 / Polish Magic"
+
+# 2. 再创建按钮 (只写这一次)
 if st.button(btn_label, type="primary"):
-    # 这里面的处理逻辑也要记得根据 mode 区分哦！
+    # 这里写真正的业务逻辑
     if selected_mode == "仅标红":
-        # 调用查错函数
-        pass
+        # process_text(...)
+        pass 
     elif selected_mode == "纠错":
-        # 调用纠错函数
+        # process_text(...)
         pass
     else:
-        # 调用润色函数
+        # process_text(...)
         pass
         
 # === 8. 处理逻辑 ===
@@ -369,6 +373,7 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
 
