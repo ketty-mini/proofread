@@ -9,6 +9,17 @@ from PIL import Image
 import pytesseract # 需安装 pip install pytesseract
 import os
 import shutil
+import os
+import subprocess
+
+st.write("--- 🛠 正在检查服务器已安装的语言包 ---")
+try:
+    # 询问 Tesseract：你到底会哪些语言？
+    result = subprocess.check_output(["tesseract", "--list-langs"], text=True)
+    st.code(result, language="text")
+except Exception as e:
+    st.error(f"检查失败: {e}")
+st.write("------------------------------------")
 
 # --- 0. Tesseract 路径强制修复 (针对云端) ---
 # 这段代码必须保留，用于在云端环境中辅助定位 Tesseract
@@ -344,6 +355,7 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
 
