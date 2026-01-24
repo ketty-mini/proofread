@@ -5,6 +5,8 @@ from docx import Document
 from docx.shared import RGBColor, Pt
 from docx.oxml.ns import qn
 from io import BytesIO
+from PIL import Image
+import pytesseract # 需安装 pip install pytesseract
 
 # --- 1. 页面配置 ---
 st.set_page_config(
@@ -13,7 +15,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 2. CSS 样式：回归经典“下划线+悬停上浮” ---
+# --- 2. CSS 样式 (关键修复在 .result-box) ---
 def local_css():
     st.markdown("""
     <style>
@@ -22,7 +24,7 @@ def local_css():
         font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
     }
 
-    /* === 顶部导航栏布局 === */
+    /* === 顶部导航栏 === */
     .nav-container {
         display: flex;
         align-items: center;
@@ -40,69 +42,58 @@ def local_css():
         letter-spacing: -0.5px;
     }
 
-    /* === 还原您喜欢的：纯文字悬停特效菜单 === */
+    /* === 纯文字悬停菜单 === */
     div[role="radiogroup"] {
         display: flex;
         justify-content: flex-end;
-        gap: 25px; /* 间距 */
-        background: transparent; /* 透明背景 */
+        gap: 25px;
+        background: transparent;
         padding: 0;
         border: none;
         width: fit-content;
         margin-left: auto;
     }
 
-    /* 隐藏默认圆圈 */
-    div[role="radiogroup"] label > div:first-child {
-        display: none; 
-    }
+    div[role="radiogroup"] label > div:first-child { display: none; }
 
-    /* 选项文字基础样式 */
     div[role="radiogroup"] label p {
         font-size: 16px;
-        color: #9ca3af; /* 默认浅灰，更显高级 */
+        color: #9ca3af;
         font-weight: 500;
         padding: 6px 12px;
         border-radius: 6px;
         margin: 0 !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* 经典的丝滑动画 */
-        border-bottom: 2px solid transparent; /* 预留边框 */
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-bottom: 2px solid transparent;
     }
 
-    /* 悬停 (Hover) 动态效果：上浮 + 浅灰气泡 */
     div[role="radiogroup"] label:hover p {
         color: #1a1a1a;
         background-color: #f3f4f6; 
-        transform: translateY(-3px); /* 经典的上浮效果 */
+        transform: translateY(-3px);
     }
 
-    /* 选中 (Selected) 状态：黑字 + 黑下划线 */
     div[role="radiogroup"] label[data-checked="true"] p {
         color: #000000;
         font-weight: 700;
         border-bottom: 2px solid #000000;
-        background-color: transparent; /* 选中时不需要背景色，保持干净 */
     }
 
-    /* === 动态说明文字 (保留这个功能，方便区分) === */
+    /* === 动态说明文字 === */
     .mode-desc {
         font-size: 14px;
         color: #666;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
         padding-left: 10px;
         border-left: 3px solid #1a1a1a;
         line-height: 1.5;
         animation: fadeIn 0.6s ease;
     }
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(5px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
 
-    /* === 输入框优化 === */
+    /* === 输入框 === */
     .stTextArea textarea {
         border: 1px solid #e5e7eb;
-        border-radius: 12px; /*稍微圆一点 */
+        border-radius: 12px;
         padding: 16px;
         font-size: 16px;
         background-color: #fcfcfc;
@@ -131,6 +122,14 @@ def local_css():
         background-color: #000000;
         transform: translateY(-1px);
     }
+    
+    /* === 拍照折叠栏样式 === */
+    .streamlit-expanderHeader {
+        font-size: 14px;
+        color: #555;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+    }
 
     /* === 隐藏多余元素 === */
     #MainMenu {visibility: hidden;}
@@ -152,6 +151,9 @@ except:
 
 client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
+if 'ocr_text' not in st.session_state:
+    st.session_state['ocr_text'] = ""
+
 # --- 4. 顶部布局 ---
 col_head_1, col_head_2 = st.columns([1.5, 2], vertical_alignment="center")
 
@@ -159,7 +161,6 @@ with col_head_1:
     st.markdown('<div class="nav-title">✒️ Ketty\'s Mini</div>', unsafe_allow_html=True)
 
 with col_head_2:
-    # 选项放在右侧，保持您喜欢的样式
     selected_mode = st.radio(
         "Nav",
         ["仅标红", "纠错", "润色"],
@@ -170,51 +171,85 @@ with col_head_2:
 
 st.markdown("---") 
 
-# --- 5. 动态内容配置 ---
+# --- 5. 动态内容配置 (关键修复：Prompt 增加"保留换行"指令) ---
 mode_config = {
     "仅标红": {
-        "desc": "🔴 Strict Mode：严格查错，仅标红原文中的错别字与语病，绝不改写。",
-        "placeholder": "在此粘贴文章... (系统将进行 GB/T 15834 严格扫描)",
+        "desc": "🔴 **Strict Mode**：严格查错，仅标红原文中的错别字与语病，**绝不改写**。",
+        "placeholder": "在此输入或拍照识别...",
         "btn_text": "开始扫描 / Strict Scan",
         "prompt": """
             你是一个严格的校对员。请检查文本中的【错别字】、【标点错误】和【明显语病】。
             【绝对指令】：
             1. 严禁重写句子，严禁润色，严禁改变原意。
-            2. 输出文本必须与原文段落结构、字数行数高度一致。
+            2. 【重要】输出文本必须与原文段落结构、换行符、字数行数高度一致。严禁合并段落。
             3. 如果没有错误，请原样输出。
             直接输出修正后的全文，不含解释。
         """
     },
     "纠错": {
-        "desc": "🛠️ Fix Mode：智能修正错别字、标点及不通顺语句，保持原意。",
-        "placeholder": "在此粘贴文章... (系统将修正错误并优化语病)",
+        "desc": "🛠️ **Fix Mode**：智能修正错别字、标点及不通顺语句，保持原意。",
+        "placeholder": "在此输入或拍照识别...",
         "btn_text": "开始纠错 / Auto Fix",
-        "prompt": "你是一个资深的语文老师。修正错别字、语病和标点。保持原文语气，只确保规范。直接输出修正后的文本。"
+        "prompt": """
+            你是一个语文老师。修正错别字、语病和标点。
+            【重要指令】：
+            1. 保持原文语气，只确保规范。
+            2. 【严禁合并段落】：必须严格保留原文的换行符和段落结构，原文有几段，输出就是几段。
+            直接输出修正后的文本，不要加任何前言后语。
+        """
     },
     "润色": {
-        "desc": "✨ Polish Mode：深度优化用词与句式，提升文章的专业度与文采。",
-        "placeholder": "在此粘贴文章... (系统将进行深度润色)",
+        "desc": "✨ **Polish Mode**：深度优化用词与句式，提升文章的专业度与文采。",
+        "placeholder": "在此输入或拍照识别...",
         "btn_text": "开始润色 / Polish Magic",
-        "prompt": "你是一个资深的编辑。请对文本进行深度润色，优化用词和句式，使其更加流畅专业。直接输出结果。"
+        "prompt": """
+            你是一个资深的编辑。请对文本进行深度润色，优化用词和句式，使其更加流畅专业。
+            【重要指令】：
+            1. 提升文采，但不要过度改变原意。
+            2. 【严禁合并段落】：输出必须严格保留原文的段落结构和换行，不要将文本合并成一大段。
+            直接输出结果，不要加任何解释。
+        """
     }
 }
 
 current_config = mode_config[selected_mode]
-
-# 显示动态说明
 st.markdown(f'<div class="mode-desc">{current_config["desc"]}</div>', unsafe_allow_html=True)
 
-# 输入区
+# --- 6. 📸 拍照功能区 ---
+with st.expander("📸 拍照导入文字 / Camera Import"):
+    camera_image = st.camera_input("点击拍照 (请确保文字清晰)")
+    
+    if camera_image:
+        try:
+            img = Image.open(camera_image)
+            text_from_image = pytesseract.image_to_string(img, lang='chi_sim+eng')
+            
+            if text_from_image.strip():
+                st.session_state['ocr_text'] = text_from_image.strip()
+                st.success("✅ 识别成功！文字已填入下方输入框。")
+            else:
+                st.warning("⚠️ 未识别到文字，请调整角度或光线重试。")
+                
+        except pytesseract.TesseractNotFoundError:
+            st.error("❌ 错误：服务器未安装 Tesseract 引擎。请先在电脑上安装 Tesseract-OCR 软件。")
+        except Exception as e:
+            st.error(f"识别出错: {e}")
+
+# --- 7. 输入区 ---
+final_value = st.session_state['ocr_text'] if st.session_state['ocr_text'] else ""
+
 text_input = st.text_area(
     "",
     height=300,
-    placeholder=current_config["placeholder"]
+    placeholder=current_config["placeholder"],
+    value=final_value, 
+    key="main_input"
 )
 
 # 按钮
 run_btn = st.button(current_config["btn_text"])
 
-# --- 6. 执行逻辑 ---
+# --- 8. 执行逻辑 ---
 if run_btn:
     if not text_input:
         st.warning("⚠️ 请先输入文字内容")
@@ -231,7 +266,7 @@ if run_btn:
                 )
                 res_text = response.choices[0].message.content.strip()
 
-                # --- 结果展示 ---
+                # --- 结果展示 (关键修复：pre-wrap) ---
                 st.markdown(
                     """
                     <style>
@@ -239,11 +274,13 @@ if run_btn:
                         margin-top: 25px;
                         padding: 40px;
                         border: 2px dashed #e5e7eb;
-                        border-radius: 4px; /* 纸张感 */
+                        border-radius: 4px;
                         background: #ffffff;
                         font-family: "Songti SC", "SimSun", serif; 
                         font-size: 18px;
                         line-height: 2.0;
+                        white-space: pre-wrap; /* ✨✨✨ 核心修复：保留换行符 ✨✨✨ */
+                        word-wrap: break-word;
                     }
                     </style>
                     """, unsafe_allow_html=True
