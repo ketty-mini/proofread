@@ -1,19 +1,3 @@
-import streamlit as st  # <--- 必须放在第一行！先拿到工具
-import os               # <--- 接着拿其他工具
-import shutil
-
-# === 诊断代码放这里 (import 之后) ===
-st.write("--- 🛠️ 服务器环境诊断 ---")
-cmd_path = shutil.which("tesseract")
-st.write(f"1. Tesseract 命令路径: `{cmd_path}`")
-file_exists = os.path.exists("/usr/bin/tesseract")
-st.write(f"2. /usr/bin/tesseract 文件是否存在: `{file_exists}`")
-st.write("------------------------")
-
-# === 下面才是原本的代码 ===
-from openai import OpenAI
-# ... 后面接着你原来的代码 ...
-
 import streamlit as st
 from openai import OpenAI
 import difflib
@@ -360,5 +344,6 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
