@@ -7,7 +7,19 @@ from docx.oxml.ns import qn
 from io import BytesIO
 from PIL import Image
 import pytesseract # 需安装 pip install pytesseract
+import os
+import shutil
 
+# 设置 Tesseract 路径
+# 这里专门检查 Linux (云端) 环境
+if os.path.exists('/usr/bin/tesseract'):
+    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+else:
+    # 如果找不到，尝试自动搜索
+    possible_path = shutil.which("tesseract")
+    if possible_path:
+        pytesseract.pytesseract.tesseract_cmd = possible_path
+        
 # --- 1. 页面配置 ---
 st.set_page_config(
     page_title="Ketty's Mini Proofreading", 
@@ -350,4 +362,5 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
