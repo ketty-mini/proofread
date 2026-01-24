@@ -76,4 +76,246 @@ def local_css():
         padding: 12px 24px;
         font-weight: 600;
         letter-spacing: 0.5px;
-        width:
+        width: 100%;
+        transition: transform 0.1s;
+    }
+    div.stButton > button:hover {
+        background-color: #333333;
+        transform: translateY(-1px);
+    }
+    /* === 上传/折叠栏样式 === */
+    .streamlit-expanderHeader {
+        font-size: 14px; color: #555; background-color: #f9f9f9; border-radius: 8px;
+    }
+    div[data-testid="stFileUploader"] section {
+        padding: 20px;
+        background-color: #fcfcfc;
+        border: 1px dashed #e5e7eb;
+    }
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
+
+local_css()
+
+# --- 3. 初始化 ---
+try:
+    if "DEEPSEEK_API_KEY" in st.secrets:
+        api_key = st.secrets["DEEPSEEK_API_KEY"]
+    else:
+        # 如果本地测试没有 secrets，可以把 key 填在这里防止报错，但上线请用 secrets
+        # st.stop() 
+        api_key = "sk-placeholder" 
+except:
+    st.stop()
+
+# 确保 api_key 存在后再初始化 client
+if 'api_key' in locals():
+    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+if 'ocr_text' not in st.session_state:
+    st.session_state['ocr_text'] = ""
+
+# --- 4. 顶部布局 (✨ 核心修改点) ---
+col_head_1, col_head_2 = st.columns([1.5, 2], vertical_alignment="center")
+
+with col_head_1:
+    st.markdown('<div class="nav-title">✒️ Ketty\'s Mini Proofreading</div>', unsafe_allow_html=True)
+
+with col_head_2:
+    # ✨ 使用 segmented_control 实现原生“点中变灰”效果
+    selected_mode = st.segmented_control(
+        "Nav",
+        options=["仅标红", "纠错", "润色"],
+        selection_mode="single",
+        default="仅标红",
+        label_visibility="collapsed"
+    )
+
+# 防止未选中的情况
+if not selected_mode:
+    selected_mode = "仅标红"
+
+st.markdown("---") 
+
+# --- 5. 动态内容配置 ---
+mode_config = {
+    "仅标红": {
+        "desc": "🔴 **Strict Mode**：严格查错，仅标红原文中的错别字与语病，**绝不改写**。",
+        "placeholder": "在此输入，或上方上传图片...",
+        "btn_text": "开始扫描 / Strict Scan",
+        "prompt": """
+            你是一个严格的校对员。请检查文本中的【错别字】、【标点错误】和【明显语病】。
+            【绝对指令】：
+            1. 严禁重写句子，严禁润色，严禁改变原意。
+            2. 【重要】输出文本必须与原文段落结构、换行符、字数行数高度一致。严禁合并段落。
+            3. 如果没有错误，请原样输出。
+            直接输出修正后的全文，不含解释。
+        """
+    },
+    "纠错": {
+        "desc": "🛠️ **Fix Mode**：智能修正错别字、标点及不通顺语句，保持原意。",
+        "placeholder": "在此输入，或上方上传图片...",
+        "btn_text": "开始纠错 / Auto Fix",
+        "prompt": """
+            你是一个语文老师。修正错别字、语病和标点。
+            【重要指令】：
+            1. 保持原文语气，只确保规范。
+            2. 【严禁合并段落】：必须严格保留原文的换行符和段落结构，原文有几段，输出就是几段。
+            直接输出修正后的文本，不要加任何前言后语。
+        """
+    },
+    "润色": {
+        "desc": "✨ **Polish Mode**：深度优化用词与句式，提升文章的专业度与文采。",
+        "placeholder": "在此输入，或上方上传图片...",
+        "btn_text": "开始润色 / Polish Magic",
+        "prompt": """
+            你是一个资深的编辑。请对文本进行深度润色，优化用词和句式，使其更加流畅专业。
+            【重要指令】：
+            1. 提升文采，但不要过度改变原意。
+            2. 【严禁合并段落】：输出必须严格保留原文的段落结构和换行，不要将文本合并成一大段。
+            直接输出结果，不要加任何解释。
+        """
+    }
+}
+
+current_config = mode_config[selected_mode]
+st.markdown(f'<div class="mode-desc">{current_config["desc"]}</div>', unsafe_allow_html=True)
+
+# --- 6. 🖼️ 图片上传功能区 ---
+with st.expander("🖼️ 上传图片识别文字 / Upload Image OCR"):
+    uploaded_file = st.file_uploader("选择一张图片 (支持 JPG/PNG)", type=['png', 'jpg', 'jpeg'])
+    
+    if uploaded_file is not None:
+        # 添加手动按钮触发识别，防止自动刷新导致的问题
+        if st.button("🔍 开始识别", key="ocr_trigger_btn"):
+            try:
+                with st.spinner("正在识别图片文字..."):
+                    img = Image.open(uploaded_file)
+                    text_from_image = pytesseract.image_to_string(img, lang='chi_sim+eng')
+                    
+                    if text_from_image.strip():
+                        st.session_state['ocr_text'] = text_from_image.strip()
+                        st.success("✅ 识别成功！文字已填入下方输入框。")
+                        st.rerun() # 强制刷新页面以显示文字
+                    else:
+                        st.warning("⚠️ 图片中未识别到清晰文字。")
+                
+            except pytesseract.TesseractNotFoundError:
+                st.error("❌ 核心错误：云端服务器未安装 Tesseract 引擎。")
+            except Exception as e:
+                st.error(f"识别出错: {e}")
+
+# --- 7. 输入区 ---
+final_value = st.session_state['ocr_text'] if st.session_state['ocr_text'] else ""
+
+text_input = st.text_area(
+    "",
+    height=300,
+    placeholder=current_config["placeholder"],
+    value=final_value, 
+    key="main_input"
+)
+
+# 按钮
+run_btn = st.button(current_config["btn_text"], type="primary")
+
+# --- 8. 执行逻辑 ---
+if run_btn:
+    if not text_input:
+        st.warning("⚠️ 请先输入文字内容")
+    else:
+        with st.spinner("Processing..."):
+            try:
+                response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": current_config["prompt"]},
+                        {"role": "user", "content": text_input}
+                    ],
+                    stream=False
+                )
+                res_text = response.choices[0].message.content.strip()
+
+                st.markdown(
+                    """
+                    <style>
+                    .result-box {
+                        margin-top: 25px;
+                        padding: 40px;
+                        border: 2px dashed #e5e7eb;
+                        border-radius: 4px;
+                        background: #ffffff;
+                        font-family: "Songti SC", "SimSun", serif; 
+                        font-size: 18px;
+                        line-height: 2.0;
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True
+                )
+
+                def get_diff_html(orig, corr, mode):
+                    output = []
+                    s = difflib.SequenceMatcher(None, orig, corr, autojunk=False)
+                    for opcode, a0, a1, b0, b1 in s.get_opcodes():
+                        if mode == "仅标红":
+                            if opcode == 'equal':
+                                output.append(f'<span>{orig[a0:a1]}</span>')
+                            elif opcode in ['delete', 'replace']:
+                                output.append(f'<span style="color:#e11d48; font-weight:bold; background-color:#fff1f2; padding:0 2px;">{orig[a0:a1]}</span>')
+                            elif opcode == 'insert':
+                                output.append(f'<span style="color:#e11d48; font-weight:bold;">^</span>')
+                        else:
+                            if opcode == 'equal':
+                                output.append(orig[a0:a1])
+                            elif opcode == 'insert':
+                                output.append(f'<span style="color:#059669; font-weight:bold;">{corr[b0:b1]}</span>')
+                            elif opcode in ['delete', 'replace']:
+                                output.append(f'<span style="color:#9ca3af; text-decoration:line-through;">{orig[a0:a1]}</span>')
+                                if opcode == 'replace':
+                                    output.append(f'<span style="color:#059669; font-weight:bold;">{corr[b0:b1]}</span>')
+                    return "".join(output)
+
+                html_content = get_diff_html(text_input, res_text, selected_mode)
+                st.markdown(f'<div class="result-box">{html_content}</div>', unsafe_allow_html=True)
+                
+                def create_docx(orig, corr, mode):
+                    doc = Document()
+                    doc.add_heading(f'Ketty\'s Review - {mode}', 0)
+                    style = doc.styles['Normal']
+                    style.font.name = 'SimSun'
+                    style.element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+                    p = doc.add_paragraph()
+                    s = difflib.SequenceMatcher(None, orig, corr, autojunk=False)
+                    for opcode, a0, a1, b0, b1 in s.get_opcodes():
+                        if mode == "仅标红":
+                            if opcode == 'equal':
+                                run = p.add_run(orig[a0:a1])
+                                run.font.color.rgb = RGBColor(0,0,0)
+                            elif opcode in ['delete', 'replace']:
+                                run = p.add_run(orig[a0:a1])
+                                run.font.color.rgb = RGBColor(255,0,0)
+                            elif opcode == 'insert':
+                                run = p.add_run("^")
+                                run.font.color.rgb = RGBColor(255,0,0)
+                                run.font.bold = True
+                        else:
+                            p.add_run(corr)
+                    f = BytesIO()
+                    doc.save(f)
+                    f.seek(0)
+                    return f
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                file_docx = create_docx(text_input, res_text, selected_mode)
+                st.download_button(
+                    label=f"📥 导出报告 / Download (.docx)",
+                    data=file_docx,
+                    file_name=f"Ketty_{selected_mode}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+
+            except Exception as e:
+                st.error(f"Error: {e}")
