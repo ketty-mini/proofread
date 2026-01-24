@@ -10,16 +10,15 @@ import pytesseract # 需安装 pip install pytesseract
 import os
 import shutil
 
-# 设置 Tesseract 路径
-# 这里专门检查 Linux (云端) 环境
+# --- 0. Tesseract 路径强制修复 (针对云端) ---
+# 这段代码必须保留，用于在云端环境中辅助定位 Tesseract
 if os.path.exists('/usr/bin/tesseract'):
     pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 else:
-    # 如果找不到，尝试自动搜索
     possible_path = shutil.which("tesseract")
     if possible_path:
         pytesseract.pytesseract.tesseract_cmd = possible_path
-        
+
 # --- 1. 页面配置 ---
 st.set_page_config(
     page_title="Ketty's Mini Proofreading", 
@@ -27,7 +26,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 2. CSS 样式 (关键修复在 .result-box) ---
+# --- 2. CSS 样式 ---
 def local_css():
     st.markdown("""
     <style>
@@ -35,15 +34,6 @@ def local_css():
         background-color: #ffffff;
         font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
     }
-
-    /* === 顶部导航栏 === */
-    .nav-container {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-bottom: 20px;
-    }
-    
     .nav-title {
         font-size: 22px;
         font-weight: 700;
@@ -53,7 +43,6 @@ def local_css():
         gap: 8px;
         letter-spacing: -0.5px;
     }
-
     /* === 纯文字悬停菜单 === */
     div[role="radiogroup"] {
         display: flex;
@@ -65,9 +54,7 @@ def local_css():
         width: fit-content;
         margin-left: auto;
     }
-
     div[role="radiogroup"] label > div:first-child { display: none; }
-
     div[role="radiogroup"] label p {
         font-size: 16px;
         color: #9ca3af;
@@ -78,20 +65,16 @@ def local_css():
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         border-bottom: 2px solid transparent;
     }
-
     div[role="radiogroup"] label:hover p {
         color: #1a1a1a;
         background-color: #f3f4f6; 
         transform: translateY(-3px);
     }
-
     div[role="radiogroup"] label[data-checked="true"] p {
         color: #000000;
         font-weight: 700;
         border-bottom: 2px solid #000000;
     }
-
-    /* === 动态说明文字 === */
     .mode-desc {
         font-size: 14px;
         color: #666;
@@ -101,7 +84,6 @@ def local_css():
         line-height: 1.5;
         animation: fadeIn 0.6s ease;
     }
-
     /* === 输入框 === */
     .stTextArea textarea {
         border: 1px solid #e5e7eb;
@@ -117,7 +99,6 @@ def local_css():
         border-color: #1a1a1a;
         box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
     }
-
     /* === 按钮 === */
     div.stButton > button {
         background-color: #1a1a1a;
@@ -134,19 +115,17 @@ def local_css():
         background-color: #000000;
         transform: translateY(-1px);
     }
-    
-    /* === 拍照折叠栏样式 === */
+    /* === 上传/折叠栏样式 === */
     .streamlit-expanderHeader {
-        font-size: 14px;
-        color: #555;
-        background-color: #f9f9f9;
-        border-radius: 8px;
+        font-size: 14px; color: #555; background-color: #f9f9f9; border-radius: 8px;
     }
-
-    /* === 隐藏多余元素 === */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* 隐藏上传组件多余的边框，使其更简洁 */
+    div[data-testid="stFileUploader"] section {
+        padding: 20px;
+        background-color: #fcfcfc;
+        border: 1px dashed #e5e7eb;
+    }
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -183,11 +162,11 @@ with col_head_2:
 
 st.markdown("---") 
 
-# --- 5. 动态内容配置 (关键修复：Prompt 增加"保留换行"指令) ---
+# --- 5. 动态内容配置 ---
 mode_config = {
     "仅标红": {
         "desc": "🔴 Strict Mode：严格查错，仅标红原文中的错别字与语病，绝不改写。",
-        "placeholder": "在此输入或拍照识别...",
+        "placeholder": "在此输入，或上方上传图片...",
         "btn_text": "开始扫描 / Strict Scan",
         "prompt": """
             你是一个严格的校对员。请检查文本中的【错别字】、【标点错误】和【明显语病】。
@@ -200,10 +179,10 @@ mode_config = {
     },
     "纠错": {
         "desc": "🛠️ Fix Mode：智能修正错别字、标点及不通顺语句，保持原意。",
-        "placeholder": "在此输入或拍照识别...",
+        "placeholder": "在此输入，或上方上传图片...",
         "btn_text": "开始纠错 / Auto Fix",
         "prompt": """
-            你是一个资深语文老师。修正错别字、语病和标点。
+            你是一个资深的语文老师。修正错别字、语病和标点。
             【重要指令】：
             1. 保持原文语气，只确保规范。
             2. 【严禁合并段落】：必须严格保留原文的换行符和段落结构，原文有几段，输出就是几段。
@@ -212,7 +191,7 @@ mode_config = {
     },
     "润色": {
         "desc": "✨ Polish Mode：深度优化用词与句式，提升文章的专业度与文采。",
-        "placeholder": "在此输入或拍照识别...",
+        "placeholder": "在此输入，或上方上传图片...",
         "btn_text": "开始润色 / Polish Magic",
         "prompt": """
             你是一个资深的编辑。请对文本进行深度润色，优化用词和句式，使其更加流畅专业。
@@ -227,23 +206,28 @@ mode_config = {
 current_config = mode_config[selected_mode]
 st.markdown(f'<div class="mode-desc">{current_config["desc"]}</div>', unsafe_allow_html=True)
 
-# --- 6. 📸 拍照功能区 ---
-with st.expander("📸 拍照导入文字 / Camera Import"):
-    camera_image = st.camera_input("点击拍照 (请确保文字清晰)")
+# --- 6. 🖼️ 图片上传功能区 (修改点) ---
+# 将原来的 st.camera_input 改为 st.file_uploader
+with st.expander("🖼️ 上传图片识别文字 / Upload Image OCR"):
+    uploaded_file = st.file_uploader("选择一张图片 (支持 JPG/PNG)", type=['png', 'jpg', 'jpeg'])
     
-    if camera_image:
+    if uploaded_file is not None:
         try:
-            img = Image.open(camera_image)
-            text_from_image = pytesseract.image_to_string(img, lang='chi_sim+eng')
-            
-            if text_from_image.strip():
-                st.session_state['ocr_text'] = text_from_image.strip()
-                st.success("✅ 识别成功！文字已填入下方输入框。")
-            else:
-                st.warning("⚠️ 未识别到文字，请调整角度或光线重试。")
+            with st.spinner("正在识别图片文字..."):
+                # 打开上传的图片
+                img = Image.open(uploaded_file)
+                # OCR 识别
+                text_from_image = pytesseract.image_to_string(img, lang='chi_sim+eng')
+                
+                if text_from_image.strip():
+                    st.session_state['ocr_text'] = text_from_image.strip()
+                    st.success("✅ 识别成功！文字已填入下方输入框。")
+                else:
+                    st.warning("⚠️ 图片中未识别到清晰文字。")
                 
         except pytesseract.TesseractNotFoundError:
-            st.error("❌ 错误：服务器未安装 Tesseract 引擎。请先在电脑上安装 Tesseract-OCR 软件。")
+            # 如果这里依然报错，说明服务器还是没装好 Tesseract
+            st.error("❌ 核心错误：云端服务器未安装 Tesseract 引擎。请尝试在 Streamlit 仪表盘删除并重新部署此应用。")
         except Exception as e:
             st.error(f"识别出错: {e}")
 
@@ -261,7 +245,7 @@ text_input = st.text_area(
 # 按钮
 run_btn = st.button(current_config["btn_text"])
 
-# --- 8. 执行逻辑 ---
+# --- 8. 执行逻辑 (保持不变) ---
 if run_btn:
     if not text_input:
         st.warning("⚠️ 请先输入文字内容")
@@ -278,7 +262,6 @@ if run_btn:
                 )
                 res_text = response.choices[0].message.content.strip()
 
-                # --- 结果展示 (关键修复：pre-wrap) ---
                 st.markdown(
                     """
                     <style>
@@ -291,7 +274,7 @@ if run_btn:
                         font-family: "Songti SC", "SimSun", serif; 
                         font-size: 18px;
                         line-height: 2.0;
-                        white-space: pre-wrap; /* ✨✨✨ 核心修复：保留换行符 ✨✨✨ */
+                        white-space: pre-wrap;
                         word-wrap: break-word;
                     }
                     </style>
@@ -323,7 +306,6 @@ if run_btn:
                 html_content = get_diff_html(text_input, res_text, selected_mode)
                 st.markdown(f'<div class="result-box">{html_content}</div>', unsafe_allow_html=True)
                 
-                # Word 导出
                 def create_docx(orig, corr, mode):
                     doc = Document()
                     doc.add_heading(f'Ketty\'s Review - {mode}', 0)
@@ -362,5 +344,3 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
-
-
