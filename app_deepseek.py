@@ -206,47 +206,43 @@ mode_config = {
 current_config = mode_config[selected_mode]
 st.markdown(f'<div class="mode-desc">{current_config["desc"]}</div>', unsafe_allow_html=True)
 
-# === 6. 🖼️ 图片上传与文字识别 (联动修复版) ===
-with st.expander("🖼️ 上传图片识别文字 / Upload Image OCR", expanded=False):
-    uploaded_file = st.file_uploader("选择一张图片", type=['png', 'jpg', 'jpeg'])
+# === 6. 🖼️ 图片上传与文字识别 (手动按钮版) ===
+with st.expander("🖼️ 上传图片识别文字 / Upload Image OCR", expanded=True):
+    uploaded_file = st.file_uploader("第一步：选择图片", type=['png', 'jpg', 'jpeg'])
     
+    # 🌟 变化在这里：加了一个按钮，不点它就不干活，防止死循环
     if uploaded_file is not None:
-        try:
-            with st.spinner("正在识别图片文字..."):
-                uploaded_file.seek(0)
-                img = Image.open(uploaded_file).convert('RGB')
-                
-                # 识别文字
-                text_from_image = pytesseract.image_to_string(img, lang='chi_sim+eng')
-                
-                if text_from_image.strip():
-                    # 关键修改 A：直接把识别结果存入 session_state 的 'user_text' 中
-                    st.session_state['user_text'] = text_from_image.strip()
-                    st.success("✅ 识别成功！文字已自动填入下方。")
+        if st.button("🔍 开始识别图片中的文字 (Start OCR)", type="primary"):
+            try:
+                with st.spinner("正在努力识别中..."):
+                    uploaded_file.seek(0)
+                    img = Image.open(uploaded_file).convert('RGB')
                     
-                    # 关键修改 B：强制刷新页面，让输入框立刻显示文字
-                    st.rerun() 
-                else:
-                    st.warning("⚠️ 未识别到清晰文字，请重试。")
+                    # 识别文字 (默认尝试中英文)
+                    text_from_image = pytesseract.image_to_string(img, lang='chi_sim+eng')
                     
-        except Exception as e:
-            st.error(f"识别出错: {e}")
+                    if text_from_image.strip():
+                        # 把识别结果存进状态里
+                        st.session_state['user_text'] = text_from_image.strip()
+                        st.success("✅ 识别成功！文字已填入下方。")
+                    else:
+                        st.warning("⚠️ 似乎没识别到文字，请检查图片清晰度。")
+                        
+            except Exception as e:
+                st.error(f"识别出错: {e}")
 
 # === 7. 📝 文字输入区 (绑定版) ===
-# 确保 session_state 里有这个变量，防止报错
 if 'user_text' not in st.session_state:
     st.session_state['user_text'] = ""
 
-# 关键修改 C：给 text_area 加上 key='user_text'
-# 这样它就会自动显示上面识别出来的文字，并且双向绑定
 text_input = st.text_area(
     "请输入或粘贴需要处理的文字：", 
     height=300,
-    key="user_text",  # <--- 这就是魔法所在！绑定同一个变量名
+    key="user_text", # 绑定状态
     help="在这里输入文字，或者通过上方图片识别自动填充"
 )
 
-run_btn = st.button("开始润色 / Polish Magic", type="primary")
+run_btn = st.button("✨ 开始润色 / Polish Magic", type="primary")
 
 # === 8. 处理逻辑 ===
 if run_btn:
@@ -348,6 +344,7 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
 
