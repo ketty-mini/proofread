@@ -242,36 +242,44 @@ text_input = st.text_area(
     help="在这里输入文字，或者通过上方图片识别自动填充"
 )
 
-# 👇 把这段代码加到 st.button 之前！
+# --- 1. 顶部模式选择 (替代原来的文字/按钮) ---
+# 这会让选中的选项自动“变灰/高亮”，视觉效果最好
+selected_mode = st.segmented_control(
+    "请选择模式 / Mode Selection",
+    options=["仅标红", "纠错", "润色"],
+    selection_mode="single",
+    default="润色",  # 默认选中润色
+    label_visibility="collapsed" # 隐藏标题，更简洁
+)
+
+# --- 2. 根据选择的模式，决定下面大按钮的名字 ---
 if selected_mode == "仅标红":
     btn_label = "🔍 开始查错 / Start Check"
+    instruction_text = "Strict Mode: 严格查错，仅标红原文中的错别字与语病，绝不改写。"
 elif selected_mode == "纠错":
     btn_label = "🚑 开始纠错 / Fix Errors"
+    instruction_text = "Fix Mode: 修改错别字和语病，保持原意。"
 else:
+    # 默认情况（防止 selected_mode 为空）
+    selected_mode = "润色" 
     btn_label = "✨ 开始润色 / Polish Magic"
-    
-run_btn = st.button("✨ 开始润色 / Polish Magic", type="primary")
+    instruction_text = "Polish Mode: 深度优化用词与句式，提升文章的专业度与文采。"
 
-# 1. 先定义名字
-if selected_mode == "仅标红":
-    btn_label = "🔍 开始查错 / Start Check"
-elif selected_mode == "纠错":
-    btn_label = "🚑 开始纠错 / Fix Errors"
-else:
-    btn_label = "✨ 开始润色 / Polish Magic"
+# 显示当前模式的提示文字（那个竖线 | 开头的文字）
+st.write(f"**| {instruction_text}**")
 
-# 2. 再创建按钮 (只写这一次)
+# --- 3. 创建唯一的行动按钮 ---
 if st.button(btn_label, type="primary"):
     # 这里写真正的业务逻辑
     if selected_mode == "仅标红":
-        # process_text(...)
-        pass 
+        # process_text(...) 调用你的查错逻辑
+        st.write("正在执行查错...") # 占位符
     elif selected_mode == "纠错":
-        # process_text(...)
-        pass
+        # process_text(...) 调用你的纠错逻辑
+        st.write("正在执行纠错...") # 占位符
     else:
-        # process_text(...)
-        pass
+        # process_text(...) 调用你的润色逻辑
+        st.write("正在执行润色...") # 占位符
         
 # === 8. 处理逻辑 ===
 if run_btn:
@@ -373,6 +381,7 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
 
