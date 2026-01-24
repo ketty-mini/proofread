@@ -1,3 +1,21 @@
+# === 诊断代码 (测试完后可删除) ===
+import shutil
+import os
+
+st.write("--- 🛠️ 服务器环境诊断 ---")
+# 检查命令是否存在
+cmd_path = shutil.which("tesseract")
+st.write(f"1. Tesseract 命令路径: `{cmd_path}`")
+
+# 检查文件是否存在
+file_exists = os.path.exists("/usr/bin/tesseract")
+st.write(f"2. /usr/bin/tesseract 文件是否存在: `{file_exists}`")
+
+# 检查 packages.txt 是否生效
+st.write("3. 如果上面都是 None 或 False，说明 packages.txt 没生效，请必须删除 App 重新 Deploy。")
+st.write("------------------------")
+# ===============================
+
 import streamlit as st
 from openai import OpenAI
 import difflib
@@ -344,3 +362,4 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
