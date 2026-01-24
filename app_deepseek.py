@@ -9,17 +9,6 @@ from PIL import Image
 import pytesseract # 需安装 pip install pytesseract
 import os
 import shutil
-import os
-import subprocess
-
-st.write("--- 🛠 正在检查服务器已安装的语言包 ---")
-try:
-    # 询问 Tesseract：你到底会哪些语言？
-    result = subprocess.check_output(["tesseract", "--list-langs"], text=True)
-    st.code(result, language="text")
-except Exception as e:
-    st.error(f"检查失败: {e}")
-st.write("------------------------------------")
 
 # --- 0. Tesseract 路径强制修复 (针对云端) ---
 # 这段代码必须保留，用于在云端环境中辅助定位 Tesseract
@@ -254,7 +243,32 @@ text_input = st.text_area(
 )
 
 run_btn = st.button("✨ 开始润色 / Polish Magic", type="primary")
+# ✅ 正确示范：使用变量作为按钮名字
+if st.button(btn_label, type="primary"):
+    # 这里面的处理逻辑也要记得根据 mode 区分哦！
+    if selected_mode == "仅标红":
+        # 调用查错函数
+        pass
+    elif selected_mode == "纠错":
+        # 调用纠错函数
+        pass
+    else:
+        # 调用润色函数
+        pass
 
+# ✅ 正确示范：使用变量作为按钮名字
+if st.button(btn_label, type="primary"):
+    # 这里面的处理逻辑也要记得根据 mode 区分哦！
+    if selected_mode == "仅标红":
+        # 调用查错函数
+        pass
+    elif selected_mode == "纠错":
+        # 调用纠错函数
+        pass
+    else:
+        # 调用润色函数
+        pass
+        
 # === 8. 处理逻辑 ===
 if run_btn:
     if not text_input.strip():
@@ -355,6 +369,7 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
 
