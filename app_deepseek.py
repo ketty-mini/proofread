@@ -215,7 +215,7 @@ with st.expander("🖼️ 上传图片识别文字 / Upload Image OCR"):
         try:
             with st.spinner("正在识别图片文字..."):
                 # 打开上传的图片
-                img = Image.open(uploaded_file)
+                img = Image.open(uploaded_file).convert('RGB')
                 # OCR 识别
                 text_from_image = pytesseract.image_to_string(img, lang='chi_sim+eng')
                 
@@ -344,6 +344,7 @@ if run_btn:
 
             except Exception as e:
                 st.error(f"Error: {e}")
+
 
 
 
