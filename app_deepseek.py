@@ -242,17 +242,21 @@ text_input = st.text_area(
     help="在这里输入文字，或者通过上方图片识别自动填充"
 )
 
-# --- 1. 顶部模式选择 (替代原来的文字/按钮) ---
-# 这会让选中的选项自动“变灰/高亮”，视觉效果最好
+# --- 1. 顶部模式选择 (这才是你要的“点中变灰”效果) ---
+# 这里的 key 是为了防止 Streamlit 刷新重置
 selected_mode = st.segmented_control(
     "请选择模式 / Mode Selection",
     options=["仅标红", "纠错", "润色"],
     selection_mode="single",
     default="润色",  # 默认选中润色
-    label_visibility="collapsed" # 隐藏标题，更简洁
+    label_visibility="collapsed" # 隐藏标题，界面更清爽
 )
 
-# --- 2. 根据选择的模式，决定下面大按钮的名字 ---
+# 防止 selected_mode 偶尔为空的情况
+if not selected_mode:
+    selected_mode = "润色"
+
+# --- 2. 根据选择的模式，准备按钮名字和提示词 ---
 if selected_mode == "仅标红":
     btn_label = "🔍 开始查错 / Start Check"
     instruction_text = "Strict Mode: 严格查错，仅标红原文中的错别字与语病，绝不改写。"
@@ -260,135 +264,39 @@ elif selected_mode == "纠错":
     btn_label = "🚑 开始纠错 / Fix Errors"
     instruction_text = "Fix Mode: 修改错别字和语病，保持原意。"
 else:
-    # 默认情况（防止 selected_mode 为空）
-    selected_mode = "润色" 
     btn_label = "✨ 开始润色 / Polish Magic"
     instruction_text = "Polish Mode: 深度优化用词与句式，提升文章的专业度与文采。"
 
-# 显示当前模式的提示文字（那个竖线 | 开头的文字）
+# 显示那行带竖线的提示文字
 st.write(f"**| {instruction_text}**")
 
-# --- 3. 创建唯一的行动按钮 ---
-if st.button(btn_label, type="primary"):
-    # 这里写真正的业务逻辑
-    if selected_mode == "仅标红":
-        # process_text(...) 调用你的查错逻辑
-        st.write("正在执行查错...") # 占位符
-    elif selected_mode == "纠错":
-        # process_text(...) 调用你的纠错逻辑
-        st.write("正在执行纠错...") # 占位符
-    else:
-        # process_text(...) 调用你的润色逻辑
-        st.write("正在执行润色...") # 占位符
+# --- 3. 唯一的执行按钮 (解决 NameError 的关键) ---
+# 注意：我们不再使用 run_btn 变量，而是直接在 if 里写逻辑
+if st.button(btn_label, type="primary", use_container_width=True):
+    
+    # 检查是否有内容（这里假设你的输入框变量名是 user_text）
+    # 如果你的输入框变量名叫 text_input，请把下面的 user_text 改成 text_input
+    if not st.session_state.get('user_text', '').strip():
+        st.warning("⚠️ 请先输入文字内容！")
+        st.stop() # 停止运行下面的代码
         
-# === 8. 处理逻辑 ===
-if run_btn:
-    if not text_input.strip():
-        st.warning("⚠️ 请先输入文字内容 (Please enter text first)")
-        st.stop()
-    else:
-        with st.spinner("Processing..."):
-            try:
-                response = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[
-                        {"role": "system", "content": current_config["prompt"]},
-                        {"role": "user", "content": text_input}
-                    ],
-                    stream=False
-                )
-                res_text = response.choices[0].message.content.strip()
-
-                st.markdown(
-                    """
-                    <style>
-                    .result-box {
-                        margin-top: 25px;
-                        padding: 40px;
-                        border: 2px dashed #e5e7eb;
-                        border-radius: 4px;
-                        background: #ffffff;
-                        font-family: "Songti SC", "SimSun", serif; 
-                        font-size: 18px;
-                        line-height: 2.0;
-                        white-space: pre-wrap;
-                        word-wrap: break-word;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True
-                )
-
-                def get_diff_html(orig, corr, mode):
-                    output = []
-                    s = difflib.SequenceMatcher(None, orig, corr, autojunk=False)
-                    for opcode, a0, a1, b0, b1 in s.get_opcodes():
-                        if mode == "仅标红":
-                            if opcode == 'equal':
-                                output.append(f'<span>{orig[a0:a1]}</span>')
-                            elif opcode in ['delete', 'replace']:
-                                output.append(f'<span style="color:#e11d48; font-weight:bold; background-color:#fff1f2; padding:0 2px;">{orig[a0:a1]}</span>')
-                            elif opcode == 'insert':
-                                output.append(f'<span style="color:#e11d48; font-weight:bold;">^</span>')
-                        else:
-                            if opcode == 'equal':
-                                output.append(orig[a0:a1])
-                            elif opcode == 'insert':
-                                output.append(f'<span style="color:#059669; font-weight:bold;">{corr[b0:b1]}</span>')
-                            elif opcode in ['delete', 'replace']:
-                                output.append(f'<span style="color:#9ca3af; text-decoration:line-through;">{orig[a0:a1]}</span>')
-                                if opcode == 'replace':
-                                    output.append(f'<span style="color:#059669; font-weight:bold;">{corr[b0:b1]}</span>')
-                    return "".join(output)
-
-                html_content = get_diff_html(text_input, res_text, selected_mode)
-                st.markdown(f'<div class="result-box">{html_content}</div>', unsafe_allow_html=True)
-                
-                def create_docx(orig, corr, mode):
-                    doc = Document()
-                    doc.add_heading(f'Ketty\'s Review - {mode}', 0)
-                    style = doc.styles['Normal']
-                    style.font.name = 'SimSun'
-                    style.element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
-                    p = doc.add_paragraph()
-                    s = difflib.SequenceMatcher(None, orig, corr, autojunk=False)
-                    for opcode, a0, a1, b0, b1 in s.get_opcodes():
-                        if mode == "仅标红":
-                            if opcode == 'equal':
-                                run = p.add_run(orig[a0:a1])
-                                run.font.color.rgb = RGBColor(0,0,0)
-                            elif opcode in ['delete', 'replace']:
-                                run = p.add_run(orig[a0:a1])
-                                run.font.color.rgb = RGBColor(255,0,0)
-                            elif opcode == 'insert':
-                                run = p.add_run("^")
-                                run.font.color.rgb = RGBColor(255,0,0)
-                                run.font.bold = True
-                        else:
-                            p.add_run(corr)
-                    f = BytesIO()
-                    doc.save(f)
-                    f.seek(0)
-                    return f
-
-                st.markdown("<br>", unsafe_allow_html=True)
-                file_docx = create_docx(text_input, res_text, selected_mode)
-                st.download_button(
-                    label=f"📥 导出报告 / Download (.docx)",
-                    data=file_docx,
-                    file_name=f"Ketty_{selected_mode}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-
-
-
-
-
-
-
-
-
-
+    st.info("AI 正在思考中... Please wait...")
+    
+    # --- 4. 核心处理逻辑 (直接在这里分流) ---
+    try:
+        if selected_mode == "仅标红":
+            # 这里调用你的查错函数，确保 process_text 函数存在
+            # 假设你的函数参数是 (text, mode)
+            result = process_text(st.session_state['user_text'], "proofread") 
+            st.markdown(result)
+            
+        elif selected_mode == "纠错":
+            result = process_text(st.session_state['user_text'], "fix")
+            st.markdown(result)
+            
+        else: # 润色
+            result = process_text(st.session_state['user_text'], "polish")
+            st.markdown(result)
+            
+    except Exception as e:
+        st.error(f"发生错误: {e}")
