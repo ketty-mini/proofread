@@ -2,7 +2,7 @@ import streamlit as st
 from openai import OpenAI
 import difflib
 from docx import Document
-from docx.shared import RGBColor, Pt
+from docx.shared import RGBColor
 from docx.oxml.ns import qn
 from io import BytesIO
 from PIL import Image
@@ -11,7 +11,6 @@ import os
 import shutil
 
 # --- 0. Tesseract 路径强制修复 ---
-# 这一段用于解决云端找不到 Tesseract 的问题
 if os.path.exists('/usr/bin/tesseract'):
     pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 else:
@@ -26,7 +25,15 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 2. CSS 样式 (已修复：灰色大按钮样式) ---
+# --- 2. 状态初始化 ---
+# 这里初始化默认模式，如果用户没选过，默认是 "仅标红"
+if "selected_mode" not in st.session_state:
+    st.session_state.selected_mode = "仅标红"
+
+if 'ocr_text' not in st.session_state:
+    st.session_state['ocr_text'] = ""
+
+# --- 3. CSS 样式 (仅保留基础美化，移除了丑陋的Radio样式) ---
 def local_css():
     st.markdown("""
     <style>
@@ -38,115 +45,39 @@ def local_css():
         font-size: 22px;
         font-weight: 700;
         color: #1a1a1a;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        letter-spacing: -0.5px;
+        margin-bottom: 20px;
+        text-align: center;
     }
-    
-    /* === 核心修改：Radio 变成【灰色大按钮】 === */
-    
-    /* 1. 隐藏原本的圆圈 */
-    div[role="radiogroup"] label > div:first-child {
-        display: none !important;
-    }
-    
-    /* 2. 容器布局 */
-    div[role="radiogroup"] {
-        display: flex;
-        flex-direction: row;
-        gap: 10px;
-        background: transparent;
-        padding: 0;
-        border: none;
-        width: fit-content;
-        margin-left: auto;
-    }
-    
-    /* 3. 按钮默认样式 (未选中) - 浅灰背景 */
-    div[role="radiogroup"] label {
-        background-color: #f3f4f6 !important;
-        padding: 10px 24px !important;
-        border-radius: 8px !important;
-        border: 1px solid #e5e7eb !important;
-        cursor: pointer;
-        transition: all 0.2s;
-        margin: 0 !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    /* 4. 按钮文字样式 (未选中) */
-    div[role="radiogroup"] label p {
-        font-size: 16px !important;
-        color: #374151 !important;
-        font-weight: 500 !important;
-        margin: 0 !important;
-    }
-    
-    /* 5. 选中状态 - 变深灰，字变白 */
-    div[role="radiogroup"] label[data-checked="true"],
-    div[role="radiogroup"] label[aria-checked="true"] {
-        background-color: #4b5563 !important;
-        border-color: #4b5563 !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-    
-    div[role="radiogroup"] label[data-checked="true"] p,
-    div[role="radiogroup"] label[aria-checked="true"] p {
-        color: #ffffff !important;
-        font-weight: 700 !important;
-    }
-
-    /* === 其他组件样式 === */
+    /* 描述文字样式 */
     .mode-desc {
+        background-color: #f9fafb;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #1a1a1a;
+        color: #4b5563;
         font-size: 14px;
-        color: #666;
-        margin-bottom: 10px;
-        padding-left: 10px;
-        border-left: 3px solid #1a1a1a;
-        line-height: 1.5;
-        animation: fadeIn 0.6s ease;
+        margin: 15px 0;
+        line-height: 1.6;
     }
+    /* 输入框样式 */
     .stTextArea textarea {
         border: 1px solid #e5e7eb;
         border-radius: 12px;
         padding: 16px;
-        font-size: 16px;
         background-color: #fcfcfc;
-        transition: all 0.2s;
     }
     .stTextArea textarea:focus {
-        background-color: #ffffff;
         border-color: #1a1a1a;
-        box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+        box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
     }
-    div.stButton > button {
-        background-color: #1a1a1a;
-        color: white;
-        border-radius: 8px;
-        border: none;
-        padding: 12px 24px;
-        font-weight: 600;
-        width: 100%;
-    }
-    div.stButton > button:hover {
-        background-color: #000000;
-        transform: translateY(-1px);
-    }
-    div[data-testid="stFileUploader"] section {
-        padding: 20px;
-        background-color: #fcfcfc;
-        border: 1px dashed #e5e7eb;
-    }
+    /* 隐藏页脚 */
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
 local_css()
 
-# --- 3. 初始化 ---
+# --- 4. API 初始化 ---
 try:
     if "DEEPSEEK_API_KEY" in st.secrets:
         api_key = st.secrets["DEEPSEEK_API_KEY"]
@@ -157,31 +88,54 @@ except:
 
 client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
-if 'ocr_text' not in st.session_state:
-    st.session_state['ocr_text'] = ""
+# --- 5. 顶部导航栏 (交互式按钮组) ---
+st.markdown('<div class="nav-title">✒️ Ketty\'s Mini Proofreading</div>', unsafe_allow_html=True)
 
-# --- 4. 顶部布局 ---
-col_head_1, col_head_2 = st.columns([1.5, 2], vertical_alignment="center")
+# 定义回调函数：点击按钮时更新 session_state
+def set_mode(mode):
+    st.session_state.selected_mode = mode
 
-with col_head_1:
-    st.markdown('<div class="nav-title">✒️ Ketty\'s Mini Proofreading</div>', unsafe_allow_html=True)
+# 创建三列布局放置按钮
+col_nav1, col_nav2, col_nav3 = st.columns(3)
 
-with col_head_2:
-    selected_mode = st.radio(
-        "Nav",
-        ["仅标红", "纠错", "润色"],
-        index=0,
-        horizontal=True,
-        label_visibility="collapsed"
+with col_nav1:
+    # 如果当前模式是"仅标红"，按钮显示为实心(primary)，否则为轮廓(secondary)
+    st.button(
+        "仅标红", 
+        type="primary" if st.session_state.selected_mode == "仅标红" else "secondary", 
+        use_container_width=True,
+        on_click=set_mode,
+        args=("仅标红",)
     )
 
-st.markdown("---") 
+with col_nav2:
+    st.button(
+        "纠错", 
+        type="primary" if st.session_state.selected_mode == "纠错" else "secondary", 
+        use_container_width=True,
+        on_click=set_mode,
+        args=("纠错",)
+    )
 
-# --- 5. 动态内容配置 ---
+with col_nav3:
+    st.button(
+        "润色", 
+        type="primary" if st.session_state.selected_mode == "润色" else "secondary", 
+        use_container_width=True,
+        on_click=set_mode,
+        args=("润色",)
+    )
+
+st.markdown("---")
+
+# --- 6. 动态内容配置 ---
+# 获取当前选中的模式
+current_mode = st.session_state.selected_mode
+
 mode_config = {
     "仅标红": {
         "desc": "🔴 **Strict Mode**：严格查错，仅标红原文中的错别字与语病，**绝不改写**。",
-        "placeholder": "在此输入，或上方上传图片...",
+        "placeholder": "请输入原文...",
         "btn_text": "开始扫描 / Strict Scan",
         "prompt": """
             你是一个严格的校对员。请检查文本中的【错别字】、【标点错误】和【明显语病】。
@@ -194,7 +148,7 @@ mode_config = {
     },
     "纠错": {
         "desc": "🛠️ **Fix Mode**：智能修正错别字、标点及不通顺语句，保持原意。",
-        "placeholder": "在此输入，或上方上传图片...",
+        "placeholder": "请输入原文...",
         "btn_text": "开始纠错 / Auto Fix",
         "prompt": """
             你是一个语文老师。修正错别字、语病和标点。
@@ -206,7 +160,7 @@ mode_config = {
     },
     "润色": {
         "desc": "✨ **Polish Mode**：深度优化用词与句式，提升文章的专业度与文采。",
-        "placeholder": "在此输入，或上方上传图片...",
+        "placeholder": "请输入原文...",
         "btn_text": "开始润色 / Polish Magic",
         "prompt": """
             你是一个资深的编辑。请对文本进行深度润色，优化用词和句式，使其更加流畅专业。
@@ -218,10 +172,10 @@ mode_config = {
     }
 }
 
-current_config = mode_config[selected_mode]
+current_config = mode_config[current_mode]
 st.markdown(f'<div class="mode-desc">{current_config["desc"]}</div>', unsafe_allow_html=True)
 
-# --- 6. 图片上传功能区 ---
+# --- 7. 图片上传功能 ---
 with st.expander("🖼️ 上传图片识别文字 / Upload Image OCR"):
     uploaded_file = st.file_uploader("选择一张图片 (支持 JPG/PNG)", type=['png', 'jpg', 'jpeg'])
     
@@ -234,15 +188,15 @@ with st.expander("🖼️ 上传图片识别文字 / Upload Image OCR"):
                 if text_from_image.strip():
                     st.session_state['ocr_text'] = text_from_image.strip()
                     st.success("✅ 识别成功！文字已填入下方输入框。")
+                    st.rerun() # 识别后刷新页面以填入文字
                 else:
                     st.warning("⚠️ 图片中未识别到清晰文字。")
-                
         except pytesseract.TesseractNotFoundError:
             st.error("❌ 核心错误：云端服务器未安装 Tesseract 引擎。")
         except Exception as e:
             st.error(f"识别出错: {e}")
 
-# --- 7. 输入区 ---
+# --- 8. 输入区 ---
 final_value = st.session_state['ocr_text'] if st.session_state['ocr_text'] else ""
 
 text_input = st.text_area(
@@ -254,14 +208,14 @@ text_input = st.text_area(
 )
 
 # 按钮
-run_btn = st.button(current_config["btn_text"])
+run_btn = st.button(current_config["btn_text"], type="primary")
 
-# --- 8. 执行逻辑 ---
+# --- 9. 执行逻辑 ---
 if run_btn:
     if not text_input:
         st.warning("⚠️ 请先输入文字内容")
     else:
-        with st.spinner("Processing..."):
+        with st.spinner("DeepSeek AI 正在思考中..."):
             try:
                 response = client.chat.completions.create(
                     model="deepseek-chat",
@@ -315,7 +269,7 @@ if run_btn:
                                     output.append(f'<span style="color:#059669; font-weight:bold;">{corr[b0:b1]}</span>')
                     return "".join(output)
 
-                html_content = get_diff_html(text_input, res_text, selected_mode)
+                html_content = get_diff_html(text_input, res_text, current_mode)
                 st.markdown(f'<div class="result-box">{html_content}</div>', unsafe_allow_html=True)
                 
                 # Word 导出逻辑
@@ -347,11 +301,11 @@ if run_btn:
                     return f
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                file_docx = create_docx(text_input, res_text, selected_mode)
+                file_docx = create_docx(text_input, res_text, current_mode)
                 st.download_button(
                     label=f"📥 导出报告 / Download (.docx)",
                     data=file_docx,
-                    file_name=f"Ketty_{selected_mode}.docx",
+                    file_name=f"Ketty_{current_mode}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
 
